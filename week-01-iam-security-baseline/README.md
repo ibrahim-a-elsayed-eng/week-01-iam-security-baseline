@@ -128,7 +128,7 @@ All AWS Account IDs and sensitive account identifiers have been redacted prior t
 ---
 
 ## 7. Resource Cleanup Checklist
-- [x] Signed out of `lab-readonly-user` and signed back in with daily **IAM Admin User** (`cloud-admin` + MFA).
+- [ ] Signed out of `lab-readonly-user` and signed back in with daily **IAM Admin User** (`cloud-admin` + MFA).
 - [ ] Deleted temporary test user `lab-readonly-user` in **IAM → Users** after completing screenshots.
 - [ ] Checked **Billing and Cost Management → Cost Explorer** to confirm `$0.00` spend and no forgotten chargeable resources.
-- [x] **Retained Permanent Baseline:** Root User MFA, daily `cloud-admin` User + MFA, Free Tier Alerts, Zero-Spend Budget, and Monthly Cost Budget remain active for Weeks 2–12.
+- [ ] **Retained Permanent Baseline:** Root User MFA, daily `cloud-admin` User + MFA, Free Tier Alerts, Zero-Spend Budget, and Monthly Cost Budget remain active for Weeks 2–12.
