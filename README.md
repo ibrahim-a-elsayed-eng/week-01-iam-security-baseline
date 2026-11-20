@@ -1,18 +1,24 @@
-# Week 1: AWS Account Security, Billing Guardrails & IAM Least-Privilege Baseline
+<div align="center">
 
-## 1. Project Overview
-- **Goal:** Secure a new AWS account from day one by locking away the Root User with Multi-Factor Authentication (MFA), creating a daily IAM Admin user (`cloud-admin`) with MFA, configuring billing guardrails, authoring custom least-privilege IAM JSON policies with Attribute-Based Access Control (ABAC), and verifying access isolation using a simulated read-only user (`lab-readonly-user`).
-- **AWS Services Used:** AWS Identity and Access Management (IAM), IAM Policy Simulator, AWS Billing and Cost Management (Free Tier Alerts, AWS Budgets, Cost Explorer), AWS CloudTrail, Amazon S3 (policy scoping target & live console test).
-- **Roadmap Phase / Week:** Phase 1 — Week 1 (Foundations & CLF-C02 Sprint).
+# AWS Account Security, Billing Guardrails & IAM Least-Privilege Baseline
+
+![AWS](https://img.shields.io/badge/AWS-IAM%20%7C%20CloudTrail%20%7C%20S3-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white)
+![Governance](https://img.shields.io/badge/Billing-Budgets%20%26%20Alerts-0EA5E9?style=for-the-badge)
+![Security](https://img.shields.io/badge/Security-MFA%20%2B%20ABAC%20Baseline-10B981?style=for-the-badge)
+![Cost](https://img.shields.io/badge/Lab%20Cost-%240%20Free%20Tier-0F172A?style=for-the-badge)
+
+**Day-one AWS account hardening: Root MFA lockdown, `cloud-admin` daily IAM user, Zero-Spend billing guardrails, and custom ABAC least-privilege S3 policies.**
+
+</div>
 
 ---
 
-## 2. Architecture Diagram
+## 1. Architecture Overview
 
 ![Week 1 AWS Account Security & IAM Baseline Architecture](./images/week1_iam_security_baseline_architecture.png)
 
 <details>
-<summary>Mermaid Architecture Diagram (Interactive Source)</summary>
+<summary><b>Click to expand Mermaid Architecture Diagram (Interactive Source)</b></summary>
 
 ```mermaid
 flowchart LR
@@ -35,22 +41,36 @@ flowchart LR
 
 </details>
 
+> [!IMPORTANT]
+> **Key Design Decision:** Retired the unrestricted AWS Root User immediately after enabling Authenticator App MFA, isolated daily administration to an MFA-protected IAM Admin (`cloud-admin`), and replaced wildcard `*` S3 permissions with a prefix + tag-scoped ABAC JSON policy (`CustomLeastPrivilegeS3ABAC`). *(Enterprise Note: AWS recommends IAM Identity Center for multi-account setups; a single IAM Admin user fits an individual learning account.)*
+
 ---
 
-## 3. Step-by-Step Implementation
+## 2. Problem & Solution
 
-### Day 1: Root Account Security & Billing Guardrails
-1. **Root User Lockdown:** Enabled an Authenticator App MFA device on the AWS Root User and treated Root strictly as a break-glass identity for rare account-level tasks.
-2. **Daily IAM Admin User (`cloud-admin`):** Created a dedicated IAM Admin user (`AdministratorAccess`) with Console access and an assigned Virtual MFA device, signed out of Root, and switched to `cloud-admin` (signing in via Account ID / Account Alias) for all daily operations.
-3. **Billing Guardrails:**
-   - Enabled **AWS Free Tier alerts** and **PDF invoices by email** under Billing Preferences.
-   - Created a **Zero-Spend Budget** to trigger an email tripwire at the first cent of spend.
-   - Created a **Monthly Cost Budget ($5–$10)** with actual and forecasted threshold alerts.
+| Aspect | Detail |
+| :--- | :--- |
+| **Problem** | Operating an AWS account with the Root User, no billing tripwires, or broad wildcard IAM policies risks account compromise and unexpected charges. |
+| **Solution** | Locked Root behind MFA, created `cloud-admin` with MFA, configured 3 billing guardrails (Free Tier Alerts, Zero-Spend Budget, `$5–$10` Monthly Budget), and authored `CustomLeastPrivilegeS3ABAC`. |
+| **Security Boundary** | `CustomLeastPrivilegeS3ABAC` allows `s3:GetObject` only on `arn:aws:s3:::doc-example-bucket/config*` when `s3:ExistingObjectTag/Env = Dev`; `lab-readonly-user` isolation verified via IAM Policy Simulator, live Console denial, and CloudTrail. |
 
-### Days 2–3: IAM Policy Structure & Custom Least-Privilege ABAC Policy
-1. Studied IAM principals (Users, Groups, Roles), identity-based managed policies (AWS Managed vs. Customer Managed), and policy elements (`Effect`, `Action`, `Resource`, `Condition`).
-2. Compared the broad `AmazonS3ReadOnlyAccess` managed policy (`s3:Get*`, `s3:List*`, `Resource: "*"`) against a narrowly scoped customer-managed policy built in the IAM Visual Editor and verified in JSON.
-3. Created `CustomLeastPrivilegeS3ABAC` restricting `s3:GetObject` to a specific bucket/prefix ARN and enforcing an ABAC object-tag condition (`Env=Dev`) — using `doc-example-bucket/config*` as a simulation target prior to creating live S3 buckets in Week 2:
+---
+
+## 3. Tech Stack
+- **Cloud & Identity:** AWS IAM, IAM Policy Simulator, Amazon S3 (policy scoping target & live Console test)
+- **Auditing & Monitoring:** AWS CloudTrail Event History (`ConsoleLogin`, `CheckMfa`), IAM Last Accessed Information
+- **Cost Governance:** AWS Billing & Cost Management (Free Tier Alerts, PDF Invoices, Zero-Spend Budget, Monthly Cost Budget `$5–$10`, Cost Explorer)
+
+---
+
+## 4. Implementation Steps (Summary)
+1. **Day 1 — Root Lockdown & Billing Guardrails:** Enabled Authenticator App MFA on Root, created daily IAM Admin `cloud-admin` (`AdministratorAccess` + Virtual MFA), enabled Free Tier alerts + PDF invoices, and set Zero-Spend + `$5–$10` Monthly Cost Budgets.
+2. **Days 2–3 — Custom Least-Privilege ABAC Policy:** Compared `AmazonS3ReadOnlyAccess` against a scoped customer-managed policy (`CustomLeastPrivilegeS3ABAC`) restricting `s3:GetObject` to `doc-example-bucket/config*` with `s3:ExistingObjectTag/Env = Dev`, and tested Allow/Deny in IAM Policy Simulator.
+3. **Days 4–5 — Admin vs. Read-Only Isolation Lab:** Created `lab-readonly-user` (`AmazonS3ReadOnlyAccess` + Virtual MFA), verified `Explicit allow` (`GetObjectAcl`) vs. `Implicit deny` (`CreateAccessGrant`, `Activate:CreateForm`) in Policy Simulator, tested live `s3:CreateBucket` denial in Console, and audited via CloudTrail.
+4. **Days 6–7 — Posture Audit & Cleanup:** Verified `$0.00` spend in Cost Explorer and deleted temporary `lab-readonly-user` while keeping permanent Root MFA, `cloud-admin`, and billing guardrails active.
+
+<details>
+<summary><b>Click to expand Custom JSON Policy, Error Log & Cleanup Checklist</b></summary>
 
 ```json
 {
@@ -71,64 +91,40 @@ flowchart LR
 }
 ```
 
-4. Validated both **Allowed** (matching ARN `arn:aws:s3:::doc-example-bucket/config*` + `s3:existingobjecttag/env = Dev`) and **Implicitly Denied** (missing tag/resource match) outcomes in the **IAM Policy Simulator**.
-
-### Days 4–5: IAM Security Baseline Lab (Admin vs. Read-Only Isolation)
-1. Created a simulated read-only test user (`lab-readonly-user`) with Console access, attached `AmazonS3ReadOnlyAccess`, and secured it with Virtual MFA.
-2. Validated boundaries in the **IAM Policy Simulator**: confirmed `Explicit allow` for S3 read (`GetObjectAcl`) and `Implicit deny` for S3 write (`CreateAccessGrant`) as well as unrelated services (`Activate:CreateForm`).
-3. Signed in live as `lab-readonly-user` and attempted to create an S3 bucket, verifying the real-world Console denial (`Failed to create bucket: s3:CreateBucket permission is required`).
-4. Switched back to `cloud-admin` and reviewed **AWS CloudTrail Event History** (`ConsoleLogin`, `CheckMfa`) alongside **Last Accessed Information** for ongoing permission auditing.
-
-### Days 6–7: Security Posture Review, Error Log & Cleanup
-1. Audited the account baseline (Root MFA active, `cloud-admin` active, Budgets active) and checked **AWS Cost Explorer** to confirm zero unexpected spend.
-2. Deleted temporary lab test resources (`lab-readonly-user`) while preserving permanent account security and billing guardrails.
-
----
-
-## 4. Security & Cost Optimization Trade-offs
-- **Security Applied:**
-  - Retired the unrestricted Root User from daily use; isolated everyday building to an MFA-protected IAM Admin user (`cloud-admin`) that is revocable, auditable, and deletable in seconds.
-  - Replaced wildcard `*` resources and broad managed actions with explicit Action (`s3:GetObject`), specific ARN prefix scoping (`doc-example-bucket/config*`), and ABAC tag conditions (`s3:ExistingObjectTag/Env = Dev`).
-  - *Enterprise Note:* AWS recommends **IAM Identity Center** for multi-account/organization setups; a single IAM Admin user is the pragmatic choice for an individual learning account.
-- **Cost Controls:**
-  - Zero-cost IAM identity and policy baseline combined with three proactive billing guardrails (Free Tier Alerts, Zero-Spend Budget, Monthly Cost Budget) and a weekly **Cost Explorer** inspection routine.
-
----
-
-## 5. Verification & Screenshots (Security Redacted)
-
-All AWS Account IDs and sensitive account identifiers have been redacted prior to publishing.
-
-### Core Lab Evidence
-1. **IAM Users & Read-Only Permissions Baseline (`cloud-admin` & `lab-readonly-user` with Virtual MFA + `AmazonS3ReadOnlyAccess`):**
-   ![IAM Users & Permissions Baseline](./screenshots/week1-01-iam-users-and-permissions.png)
-
-2. **Custom Least-Privilege ABAC Policy (`CustomLeastPrivilegeS3ABAC` Creation + Policy Simulator Allow/Deny):**
-   ![Custom ABAC Policy & Simulator](./screenshots/week1-02-custom-abac-policy-simulator.png)
-
-3. **Read-Only Isolation in IAM Policy Simulator (Cross-Service Deny + S3 Read Allow vs. Write Deny):**
-   ![Read-Only Policy Simulator](./screenshots/week1-03-readonly-policy-simulator.png)
-
-4. **Live Console `AccessDenied` Test & CloudTrail Event History:**
-   ![Live Console Deny & CloudTrail Audit](./screenshots/week1-04-live-console-deny-and-cloudtrail.png)
-
-### Optional Account Guardrails Evidence (Add if captured)
-- `./screenshots/week1-05-root-mfa-and-budgets.png` — IAM Dashboard Root MFA green status & Billing Budgets (`Zero-Spend` + `Monthly Cost`) + `Cost Explorer` `$0.00` verification.
-
----
-
-## 6. Error Log & Lessons Learned
+### Error Log & Lessons Learned
 
 | Issue Encountered | Root Cause | Resolution |
 | :--- | :--- | :--- |
-| Visual Editor displayed `accesspointobject` and `"Specified object resource ARN for the AbortMultipartUpload and 43 more actions"` even when only `s3:GetObject` was checked. | Current AWS IAM Console UI displays all S3 resource types associated with the service (`object` and `accesspointobject`) and shows an informational label listing other actions that share the `object` resource type. | Switched to the **JSON** editor tab to confirm only `"Action": "s3:GetObject"` was present, selected **Specific** ARN for `object` (`doc-example-bucket/config*`), and verified no stray `"*"` or `accesspoint` ARNs remained. |
-| Newly created `lab-readonly-user` had zero access to any service immediately after creation. | All IAM principals (Users, Groups, Roles) start with zero implicit permissions until an identity-based policy is attached. | Attached `AmazonS3ReadOnlyAccess` directly to `lab-readonly-user` and verified Virtual MFA enrollment before testing. |
-| Confusion between AWS Console UI navigation errors and API permission failures when testing tightly scoped policies. | The AWS Management Console often requires extra list/display permissions to render UI pages compared to direct programmatic API calls or the Policy Simulator. | Validated granular `s3:GetObject` + ABAC tag logic in **IAM Policy Simulator**, verified live `s3:CreateBucket` denial in S3 Console, and inspected **CloudTrail Event History** (`ConsoleLogin`, `CheckMfa`). |
+| Visual Editor displayed `accesspointobject` and `"Specified object resource ARN for the AbortMultipartUpload and 43 more actions"` when only `s3:GetObject` was checked. | AWS IAM Console UI displays all S3 resource types associated with the service (`object` and `accesspointobject`) and lists other actions sharing that resource type. | Switched to the **JSON** editor tab to confirm only `"Action": "s3:GetObject"` was present, selected **Specific** ARN (`doc-example-bucket/config*`), and verified no stray `"*"` remained. |
+| Newly created `lab-readonly-user` had zero access to any service initially. | All IAM principals start with zero implicit permissions until an identity-based policy is attached. | Attached `AmazonS3ReadOnlyAccess` to `lab-readonly-user` and enrolled Virtual MFA before testing. |
+| Confusion between Console UI navigation errors and API permission failures when testing scoped policies. | The AWS Management Console often needs extra list/display permissions to render UI pages compared to direct API calls. | Validated `s3:GetObject` + ABAC tag logic in **IAM Policy Simulator**, verified live `s3:CreateBucket` denial in S3 Console, and inspected **CloudTrail Event History**. |
+
+### Resource Cleanup Checklist
+- [x] Signed out of `lab-readonly-user` and signed back in as `cloud-admin` + MFA.
+- [x] Deleted temporary test user `lab-readonly-user` in **IAM → Users**.
+- [x] Checked **Billing and Cost Management → Cost Explorer** (`$0.00` spend).
+- [x] Retained permanent baseline: Root MFA, `cloud-admin` + MFA, Free Tier Alerts, Zero-Spend Budget, and Monthly Cost Budget.
+
+</details>
 
 ---
 
-## 7. Resource Cleanup Checklist
-- [ x ] Signed out of `lab-readonly-user` and signed back in with daily **IAM Admin User** (`cloud-admin` + MFA).
-- [ x ] Deleted temporary test user `lab-readonly-user` in **IAM → Users** after completing screenshots.
-- [ x ] Checked **Billing and Cost Management → Cost Explorer** to confirm `$0.00` spend and no forgotten chargeable resources.
-- [ x ] **Retained Permanent Baseline:** Root User MFA, daily `cloud-admin` User + MFA, Free Tier Alerts, Zero-Spend Budget, and Monthly Cost Budget remain active for Weeks 2–12.
+## 5. Verification & Results
+*(All AWS Account IDs and sensitive identifiers are redacted.)*
+
+1. **IAM Users & Read-Only Permissions Baseline (`cloud-admin` & `lab-readonly-user`):**
+   ![IAM Users & Permissions Baseline](./screenshots/week1-01-iam-users-and-permissions.png)
+2. **Custom Least-Privilege ABAC Policy (`CustomLeastPrivilegeS3ABAC`) & Simulator:**
+   ![Custom ABAC Policy & Simulator](./screenshots/week1-02-custom-abac-policy-simulator.png)
+3. **Read-Only Isolation in IAM Policy Simulator:**
+   ![Read-Only Policy Simulator](./screenshots/week1-03-readonly-policy-simulator.png)
+4. **Live Console `AccessDenied` Test & CloudTrail Event History:**
+   ![Live Console Deny & CloudTrail Audit](./screenshots/week1-04-live-console-deny-and-cloudtrail.png)
+
+*(Optional guardrails screenshot path if captured: `./screenshots/week1-05-root-mfa-and-budgets.png`)*
+
+---
+
+## 6. Key Engineering Takeaways
+- **Defense-in-Depth from Day One:** Combining Root MFA, a revocable daily IAM Admin, and Zero-Spend Budgets prevents both security incidents and surprise bills.
+- **Verify Policies in JSON & Simulator:** Always inspect the generated JSON tab and test both Allow and Implicit Deny paths in the IAM Policy Simulator before relying on a policy.
